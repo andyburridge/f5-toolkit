@@ -1,0 +1,35 @@
+f5_services:
+  service1:
+    f5_virtual_server_port: 8301
+    f5_virtual_server_profiles:
+    - name: /Common/tcp-default_Profile
+      context: all
+    - name: /Common/http-default_Profile
+      context: all
+    - name: /Common/http-analytics-default_Profile
+      context: all
+    - name: /Common/tcp-analytics-default_Profile
+      context: all
+    f5_pool_port: 8301
+    f5_monitor_protocol: HTTP
+    f5_monitor_port: 9301
+    f5_monitor_send_string: 'GET /health HTTP/1.1\r\nHost: \r\nConnection: Close\r\n\r\n'
+    f5_monitor_recv_string: '\r\n\x7B\x22status\x22:\x22UP\x22'
+  service2:
+    f5_virtual_server_port: 8082
+    f5_virtual_server_irules:
+    - /Common/http-x-forwarded_iRule
+    f5_virtual_server_profiles:
+    - name: /Common/tcp-default_Profile
+      context: all
+    - name: /Common/http-default_Profile
+      context: all
+    - name: /Common/http-analytics-default_Profile
+      context: all
+    - name: /Common/tcp-analytics-default_Profile
+      context: all
+    f5_pool_port: 8082
+    f5_monitor_protocol: HTTP
+    f5_monitor_port: 9082
+    f5_monitor_send_string: 'GET /health HTTP/1.1\r\nHost: \r\nConnection: Close\r\n\r\n'
+    f5_monitor_recv_string: '\r\n\x7B\x22status\x22:\x22UP\x22'
