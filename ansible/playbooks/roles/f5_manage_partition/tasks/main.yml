@@ -1,0 +1,33 @@
+---
+##
+##  This role manages partitions on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_partition_module.html
+##
+
+- name: Debug output for partition management
+  vars: 
+    msg: |
+        partition_name:           {{ f5_partition }}
+        partition_description:    {{ item.value.f5_partition_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}.
+        partition_state:          {{ component_state }}
+        provider:                 {{ f5_provider }}
+ 
+  delegate_to: localhost
+  run_once: true
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+
+
+
+- name: "Manage F5 BIG-IP partition for group {{ group }}"
+  bigip_partition:
+
+    name:           "{{ f5_partition }}"
+    description:    "{{ item.value.f5_partition_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    provider:       "{{ f5_provider }}"
+    state:          "{{ component_state }}" 
+
+  delegate_to: localhost
+  run_once: true
+  tags: [ 'f5_create_partition' ]

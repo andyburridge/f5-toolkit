@@ -1,0 +1,33 @@
+---
+#
+# this playbook uses the Netbox API  to delete the virtual address associated to the virtual server.
+# this playbook runs in serial mode to ensure that the deletion logic holds.
+#
+
+- name: "Obtain IP address from Netbox API to use in conjunction with the BIG-IP virtual server deployment."
+  hosts: "{{ group | default('undefined-hosts') }}"
+  gather_facts: no
+  serial: 1
+  tasks:
+
+  - name: "Get virtual ip address from Netbox for application: {{ group }}"
+    import_role:
+      name: netbox_get_ip_address
+    ignore_errors: no
+    tags: netbox_get_ip_address
+
+
+  # if the IP address exists, assign it to the 'virtual_ip' variable in the dictionary so that it can be deleted from the BIG-IP.
+  - name: "Update global IP address variable with Netbox results"
+    set_fact:
+      virtual_ip: "{{ ip_result.json.results[0].address | default ('0') }}"
+    when: ip_result.json.count == 1
+
+
+  # if the IP address exists, use the Netbox API to delete it.
+  - name: "Delete virtual ip address from Netbox"
+    import_role:
+      name: netbox_delete_ip_address
+    ignore_errors: no
+    tags: netbox_delete_ip_address
+    when: ip_result.json.count == 1

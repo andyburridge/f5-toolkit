@@ -1,0 +1,36 @@
+---
+##
+## this role creates a new IP address entry in netbox, using the next available IP address in the specific prefix.  
+##
+    
+    
+- name: Debug output for requesting next available IP address from a prefix
+  vars: 
+    msg: |
+         inventory_hostname:    {{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] |  default('unspecified-service') }}
+         netbox_dns_suffix:     {{ netbox_info.netbox_dns_suffix |  default('unspecified-domain.com') }}
+         prefix_result:         {{ prefix_result.json.results[0].id |  default('unspecified-prefix') }}
+         netbox_ip_role:        {{ netbox_info.netbox_ip_role |  default('unspecified-ip-role') }}
+         netbox_headers:        {{ netbox_headers }}
+
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"    
+    
+
+- name: Requests next available IP address from specified prefix
+  uri:
+    url: https://netbox.comms.yodel.net/api/ipam/prefixes/{{ prefix_result.json.results[0].id | default ('0') }}/available-ips/
+    method: POST
+    status_code: 201
+    return_content: yes
+    validate_certs: no
+    body_format: json 
+    headers: "{{ netbox_headers }}"
+    body: 
+      "{ \"dns_name\": \"pr-lb-f5-{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] | default('unspecified-service') }}.{{ netbox_info.netbox_dns_suffix |  default('unspecified-domain.com') }}\",\"role\": \"{{ netbox_info.netbox_ip_role |  default('unspecified-ip-role') }}\",\"description\": \"{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}\" }"
+
+  register: new_ip_result
+  delegate_to: localhost
+  tags: [ 'netbox_create_ip_address_next_available' ]

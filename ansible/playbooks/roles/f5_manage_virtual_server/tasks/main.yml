@@ -1,0 +1,81 @@
+---
+##
+##  This role manages virtual servers on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_virtual_server_module.html
+##  Separate virtual server creation roles exist as the HTTP redirect virtual servers don't take a pool parameter
+##
+
+- name: Debug output for virtual server management (standard/TCP)
+  vars: 
+    msg: |
+         virtual_server_name:                   {{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Virtual
+         virtual_server_description:            {{ item.value.f5_virtual_server_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}.
+         virtual_server_type:                   {{ item.value.f5_virtual_server_type | default(f5_defaults.f5_virtual_server_type) }}
+         virtual_server_source:                 {{ item.value.f5_virtual_server_source_ip | default(f5_defaults.f5_virtual_server_source_ip) }}
+         virtual_server_destination:            {{ virtual_ip.split('/')[0] | default ('0') }}
+         virtual_server_port:                   {{ item.value.f5_virtual_server_port | default(f5_defaults.f5_virtual_server_port) }}
+         virtual_server_enabled_vlans:          /Common/{{ lb_vlans | join(',/Common/') }}
+         virtual_server_pool:                   {{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Pool
+         virtual_server_partition:              {{ f5_partition }}
+         virtual_server_profiles:               {{ item.value.f5_virtual_server_profiles | default(f5_defaults.f5_virtual_server_profiles) }}
+         virtual_server_persistence:            {{ item.value.f5_virtual_server_persistence | default(f5_defaults.f5_virtual_server_persistence) }}
+         virtual_server_snat:                   {{ item.value.f5_virtual_server_source_address_translation | default(f5_defaults.f5_virtual_server_source_address_translation) }}
+         virtual_server_irules:                 {{ item.value.f5_virtual_server_irules | default(f5_defaults.f5_virtual_server_irules) }}
+         ip_protocol:                           {{ item.value.f5_virtual_server_protocol | default(f5_defaults.f5_virtual_server_protocol) }}
+         virtual_server_state:                  {{ component_state }}
+         provider:                              {{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+
+
+- name: "Manage F5 BIG-IP virtual server for application: {{ group }}"
+  bigip_virtual_server:
+    name:                          "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Virtual"
+    description:                   "{{ item.value.f5_virtual_server_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    type:                          "{{ item.value.f5_virtual_server_type | default(f5_defaults.f5_virtual_server_type) }}"
+    source:                        "{{ item.value.f5_virtual_server_source_ip | default(f5_defaults.f5_virtual_server_source_ip) }}"
+    destination:                   "{{ virtual_ip.split('/')[0] | default ('0') }}"
+    port:                          "{{ item.value.f5_virtual_server_port | default(f5_defaults.f5_virtual_server_port) }}"
+    enabled_vlans:                 "/Common/{{ lb_vlans | join(',/Common/') }}"
+    pool:                          "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Pool"
+    partition:                     "{{ f5_partition }}"
+    profiles:                      "{{ item.value.f5_virtual_server_profiles | default(f5_defaults.f5_virtual_server_profiles) }}"
+    default_persistence_profile:   "{{ item.value.f5_virtual_server_persistence | default(f5_defaults.f5_virtual_server_persistence) }}"
+    snat:                          "{{ item.value.f5_virtual_server_source_address_translation | default(f5_defaults.f5_virtual_server_source_address_translation) }}"
+    irules:                        "{{ item.value.f5_virtual_server_irules | default(f5_defaults.f5_virtual_server_irules) }}"
+    ip_protocol:                   "{{ item.value.f5_virtual_server_protocol | default(f5_defaults.f5_virtual_server_protocol) }}"
+    state:                         "{{ component_state}}"
+    provider:                      "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_virtual_server' ]
+  when: item.key is not search("http-redirect")
+
+
+- name: "Manage F5 BIG-IP http redirect virtual server for application: {{ group }}"
+  bigip_virtual_server:
+    name:                          "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Virtual"
+    description:                   "{{ item.value.f5_virtual_server_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    type:                          "{{ item.value.f5_virtual_server_type | default(f5_defaults.f5_virtual_server_type) }}"
+    source:                        "{{ item.value.f5_virtual_server_source_ip | default(f5_defaults.f5_virtual_server_source_ip) }}"
+    destination:                   "{{ virtual_ip.split('/')[0] | default ('0') }}"
+    port:                          "{{ item.value.f5_virtual_server_port | default(f5_defaults.f5_virtual_server_port) }}"
+    enabled_vlans:                 "/Common/{{ lb_vlans | join(',/Common/') }}"
+    partition:                     "{{ f5_partition }}"
+    profiles:                      "{{ item.value.f5_virtual_server_profiles | default(f5_defaults.f5_virtual_server_profiles) }}"
+    default_persistence_profile:   "{{ item.value.f5_virtual_server_persistence | default(f5_defaults.f5_virtual_server_persistence) }}"
+    snat:                          "{{ item.value.f5_virtual_server_source_address_translation | default(f5_defaults.f5_virtual_server_source_address_translation) }}"
+    irules:                        "{{ item.value.f5_virtual_server_irules | default(f5_defaults.f5_virtual_server_irules) }}"
+    state:                         "{{ component_state}}"
+    provider:                      "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_virtual_server' ]
+  when: item.key is search("http-redirect")
+

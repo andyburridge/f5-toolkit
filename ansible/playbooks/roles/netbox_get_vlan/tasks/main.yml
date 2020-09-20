@@ -1,0 +1,33 @@
+---
+##
+## this role obtains VLAN information from netbox for the specified VLAN name, if it exists.  
+##
+    
+
+- name: Debug output for obtaining VLAN information from Netbox
+  vars: 
+    msg: |
+         netbox_vlan:       {{ node_parameters_dict[inventory_hostname|lower]['netbox_vlan'] }}
+         netbox_site:       {{ node_parameters_dict[inventory_hostname|lower]['netbox_site'] }}
+         netbox_headers:    {{ netbox_headers }}
+
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"    
+    
+
+
+- name: Query Netbox VLAN API endpoint to check for the VLAN entry matching the VLAN and site specified
+  uri:
+    url: https://netbox.comms.yodel.net/api/ipam/vlans/?name={{ node_parameters_dict[inventory_hostname|lower]['netbox_vlan'] }}&site={{ node_parameters_dict[inventory_hostname|lower]['netbox_site'] }}
+    method: GET
+    status_code: 200
+    return_content: yes
+    validate_certs: no
+    body_format: json 
+    headers: "{{ netbox_headers }}"
+
+  register: vlan_result
+  delegate_to: localhost
+  tags: [ 'netbox_get_vlan' ]

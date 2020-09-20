@@ -1,0 +1,58 @@
+---
+##
+##  This role manages nodes on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_node_module.html
+##
+
+- name: Debug output for node creation via FQDN
+  vars: 
+    msg: |
+         node_name:           {{ inventory_hostname|lower }}.yodel.net
+         node_description:    {{ item.value.f5_node_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}.
+         node_fqdn:           {{ inventory_hostname|lower }}.yodel.net
+         node_partition:      {{ f5_partition }}
+         node_state:          {{ component_state }}
+         provider:            {{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}
+         
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  when:
+    - environment_lb is not search("web")
+
+
+- name: "Manage F5 BIG-IP non-web node(s) for application: {{ group }}  {{ play_hosts }}"
+  bigip_node:
+
+    name:           "{{ inventory_hostname|lower }}.yodel.net"
+    description:    "{{ item.value.f5_node_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    fqdn:           "{{ inventory_hostname|lower }}.yodel.net" 
+    partition:      "{{ f5_partition }}"
+    state:          "{{ component_state }}"
+    provider:       "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  delegate_to: localhost
+  tags: [ 'f5_manage_node' ]
+  when:
+    - environment_lb is not search("web")
+
+
+- name: "Manage F5 BIG-IP web node(s) for application: {{ group }}  {{ play_hosts }}"
+  bigip_node:
+
+    name:           "{{ inventory_hostname|lower }}-fe.yodel.net"
+    description:    "{{ item.value.f5_node_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    fqdn:           "{{ inventory_hostname|lower }}-fe.yodel.net" 
+    partition:      "{{ f5_partition }}"
+    state:          "{{ component_state }}"
+    provider:       "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  delegate_to: localhost
+  tags: [ 'f5_manage_node' ]
+  when:
+    - environment_lb is search("web")
+
+
+
+

@@ -1,0 +1,35 @@
+---
+##
+## this role deletes an IP address from netbox for the specified ID, if it exists.  
+##
+    
+    
+- name: Debug output for deleting IP address from Netbox, when there is a valid ID
+  vars: 
+    msg: |
+         uri:                 https://netbox.comms.yodel.net/api/ipam/ip-addresses/{{ ip_result.json.results[0].id }}/
+         netbox_headers:      {{ netbox_headers }}
+
+  delegate_to: localhost
+  run_once: true
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"    
+  when: ip_result.json.count != 0
+    
+
+- name: Deletes IP address based on ID
+  uri:
+    url: https://netbox.comms.yodel.net/api/ipam/ip-addresses/{{ ip_result.json.results[0].id | default ('0') }}/
+    method: DELETE
+    status_code: 204
+    return_content: yes
+    validate_certs: no
+    body_format: json 
+    headers: "{{ netbox_headers }}"
+    
+  register: new_ip_result
+  delegate_to: localhost
+  run_once: true
+  tags: [ 'netbox_create_ip_address_next_available' ]
+  when: ip_result.json.count != 0

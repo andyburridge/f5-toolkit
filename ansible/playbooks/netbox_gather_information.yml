@@ -1,0 +1,173 @@
+---
+#
+# this playbook queries the Netbox API using the hosts provded to gather the requisite information to deploy the hosts
+# into a load balanced virtual server.
+# the result of running this playbook is the dictionary 'node_parameters_dict' being populated with the following information
+# from each host:
+#
+# {{ server_name }}
+#   {{ environment }}
+#   {{ f5_provider }}
+#   {{ lb_vlans }}
+#   {{ netbox_site }}
+#   {{ netbox_vlan }}
+#   {{ server_role }} 
+#
+# this dictionary can then be used in conjunction with a further playbook to make changes to the F5 BIG-IP deployment.
+#
+
+- name: "Gather environment and VLAN information from Netbox API."
+  hosts: "{{ group | default('undefined-hosts') }}"
+  gather_facts: no
+  tasks:
+
+  - name: "Initialise the dictionary with keys derived from the specified hostnames."
+    set_fact:
+      node_parameters_dict: "{{ node_parameters_dict | combine({inventory_hostname | lower:{}}) }}"
+  
+  
+  - name: "Query Netbox to discover the IP addresses of the specified hosts."
+    import_role:
+      name: netbox_get_ip_address_hosts
+    ignore_errors: no
+    tags: netbox_get_ip_address_hosts
+  
+  
+  - name: "Query Netbox to discover the prefixes that match the specified host IP addresses."
+    import_role:
+      name: netbox_get_prefix_from_ip
+    ignore_errors: no
+    tags: netbox_get_prefix_from_ip
+  
+  
+    # netbox by default returns every prefix in the hierarchy of which the IP is a member, including summaries.
+    # json_query is used here to filter the results down to only prefixes that have a VLAN attached to them.
+    # this effectively rules out all the summaries, and only gives the most specific prefix back.
+  - name: "Identify the most specific prefix of which the host is a member, and extract the Netbox role and environment for that prefix (non SS)." 
+    vars:
+      jmesquery: "[? vlan != null]"
+    set_fact:
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'server_role' : item.role.name,  
+             'environment' : item.role.name.split('-').0 | lower}}, recursive=True) 
+        }}
+    with_items: "{{ prefix_result.json.results | json_query(jmesquery) }}"
+    when: item.role.name.split('-').0 | lower is not search("ss")
+  
+
+
+  # Catch instances where we are dealing with Shared Services.  The role in netbox is set to 'SS', which will set the environment variable
+  # to SS, when it needs to in fact be 'PROD', given that SS and PROD run on the same load balancer.
+  - name: "Identify the most specific prefix of which the host is a member, and extract the Netbox role and environment for that prefix (SS)." 
+    vars:
+      jmesquery: "[? vlan != null]"
+    set_fact:
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'server_role' : item.role.name,  
+             'environment' : 'prod'}}, recursive=True) 
+        }}
+    with_items: "{{ prefix_result.json.results | json_query(jmesquery) }}"
+    when: item.role.name.split('-').0 | lower is search("ss")
+
+    
+  # Now that the environment is known, the variable 'f5_provider' can be built. 
+  # This is used in the BIG-IP playbooks to target the relevant BIG-IP for the host.
+  - name: "Determine which BIG-IP to run the build script on, based on the previously determined environment (environment != SS)."
+    set_fact: 
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+           ({inventory_hostname | lower: 
+             {'f5_provider' : {
+               'password'      : f5_password,
+               'server'        : 'pr-lb-f5-' + node_parameters_dict[inventory_hostname|lower]['environment'] + '-01.comms.yodel.net',
+               'server_port'   : 443,
+               'transport'     : 'rest',
+               'timeout'       : 10,
+               'user'          : f5_username,
+               'validate_certs': 'no'
+             }}},recursive=True)
+        }}
+
+ 
+  # netbox assigns VLANs/prefixes to a role, based on environment. Here, we take the server role, and 
+  # swap 'SRV' for 'LB' to get the matching load balancer role.
+  - name: "Get the load balancer VLANs that are associated to the role obtained (swapping SRV - LB)"
+    set_fact:
+      environment_lb: "{{ ( node_parameters_dict[inventory_hostname|lower]['server_role'] ) | replace('SRV','LB') | lower }}"
+  
+  
+  # if the role is in 'CORP', a little extra work is required.  The server roles in CORP are split into APP/DB/WEB,
+  # but there is only a single load balancer role, therefore we strip off the extraneous server role, leaving [env]-corp-lb
+  - name: "Handle Netbox roles when environment is CORP"
+    set_fact:
+      environment_lb: "{{ environment_lb | replace('app-','') | replace('db-','') | replace('web-','') }}"
+    when: environment_lb is search('corp')
+  
+  
+  # we can then use the load balancer role to get the associated prefixes.
+  - name: "Query Netbox to discover the prefix(es) that match the specified lb role."
+    import_role:
+      name: netbox_get_prefix_from_role
+    ignore_errors: no
+    tags: netbox_get_prefix_from_role
+  
+  
+  # the prefixes in the load balancer role have VLANs associated. We need to pass these to the BIG-IP
+  # to allocate the appropriate VLANs to the Virtual Server.
+  - name: "Assign all the matching Load Balancer VLANs to a list to use with the build scripts."
+    vars:
+      jmesquery: "[? vlan != null]"
+    set_fact:
+      lb_vlans: "{{ lb_vlans + [ item.vlan.name ] }}"
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'lb_vlans' :lb_vlans + [ item.vlan.name ] }}, recursive=True) 
+        }}   
+    with_items: "{{ prefix_result.json.results | json_query(jmesquery) }}"
+  
+  
+  # once we have the load balancer VLANs, we need to discover which of the VLANs will be used to assign the VIP.
+  # in a 'one-armed' deployment, this is easy, there is only one VLAN.
+  - name: "Assign the matching frontend Load Blanacer VLAN to use with Netbox VLAN IP assignment (one-arm)."
+    set_fact:
+      netbox_vlan: "{{ node_parameters_dict[inventory_hostname|lower]['lb_vlans'][0] }}"
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'netbox_vlan' : node_parameters_dict[inventory_hostname|lower]['lb_vlans'][0] }}, recursive=True) 
+        }}   
+    when: "{{ node_parameters_dict[inventory_hostname|lower]['lb_vlans'] | length}} == 1"
+  
+  
+  # in a 'two-armed' deployment, we grab the VLAN that has 'FE' in its name.
+  - name: "Assign the matching frontend Load Blanacer VLAN to use with Netbox VLAN IP assignment (two-arm)."
+    set_fact:
+      netbox_vlan: "{{ item }}"
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'netbox_vlan' : item }}, recursive=True) 
+        }}   
+    when: 
+      - "{{ node_parameters_dict[inventory_hostname|lower]['lb_vlans'] | length}} == 2"
+      - item is search("LB-FE")
+    with_items: "{{ node_parameters_dict[inventory_hostname|lower]['lb_vlans'] }}"
+  
+  
+  # lastly, we grab the site associated to the VLAN. This is required when we request an IP address from Netbox.
+  - name: "Assign the prefix site variable to use with Netbox VLAN IP assignment."
+    vars:
+      jmesquery: "[? vlan != null]"
+    set_fact:
+      netbox_site: "{{ item.site.slug }}"
+      node_parameters_dict: >
+        {{ node_parameters_dict | combine
+          ({inventory_hostname | lower:
+            {'netbox_site' : item.site.slug }}, recursive=True) 
+        }}   
+    with_items: "{{ prefix_result.json.results | json_query(jmesquery) }}"

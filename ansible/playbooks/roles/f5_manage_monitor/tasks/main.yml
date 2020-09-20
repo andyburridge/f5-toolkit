@@ -1,0 +1,162 @@
+---
+##
+##  This role manages monitors (TCP/HTTP) on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_monitor_tcp_module.html
+##       https://docs.ansible.com/ansible/latest/modules/bigip_monitor_http_module.html
+##
+
+- name: Debug output for monitor creation
+  vars: 
+    msg: |
+         monitor_name:               {{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor
+         monitor_description:        {{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}
+         monitor_ip:                 {{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}
+         monitor_port:               {{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}
+         monitor_protocol:           {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}
+         monitor_interval:           {{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}
+         monitor_partition:          {{ f5_partition }}
+         monitor_send:               {{ item.value.f5_monitor_send_string | default(f5_defaults.f5_monitor_send_string) }}
+         monitor_receive:            {{ item.value.f5_monitor_recv_string | default(f5_defaults.f5_monitor_recv_string) }}
+         monitor_receive_disable:    {{ item.value.f5_monitor_recv_disable | default(f5_defaults.f5_monitor_recv_disable) }}
+         monitor_timeout:            {{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}
+         monitor_state:              {{ component_state }}
+         provider:                   {{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  when: item.key is not search("http-redirect")
+
+
+- name: "Manage F5 BIG-IP TCP monitor(s) for application: {{ group }}"
+  bigip_monitor_tcp:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    send:               "{{ item.value.f5_monitor_send_string | default(f5_defaults.f5_monitor_send_string) }}"
+    receive:            "{{ item.value.f5_monitor_recv_string | default(f5_defaults.f5_monitor_recv_string) }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_tcp_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'TCP'
+
+
+- name: "Manage F5 BIG-IP HTTP monitor(s) for application: {{ group }}"
+  bigip_monitor_http:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    send:               "{{ item.value.f5_monitor_send_string | default(f5_defaults.f5_monitor_send_string) }}"
+    receive:            "{{ item.value.f5_monitor_recv_string | default(f5_defaults.f5_monitor_recv_string) }}"
+    receive_disable:    "{{ item.value.f5_monitor_recv_disable| default(f5_defaults.f5_monitor_recv_disable) }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_http_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'HTTP'
+
+
+- name: "Manage F5 BIG-IP HTTPS monitor(s) for application: {{ group }}"
+  bigip_monitor_https:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    send:               "{{ item.value.f5_monitor_send_string | default(f5_defaults.f5_monitor_send_string) }}"
+    receive:            "{{ item.value.f5_monitor_recv_string | default(f5_defaults.f5_monitor_recv_string) }}"
+    receive_disable:    "{{ item.value.f5_monitor_recv_disable| default(f5_defaults.f5_monitor_recv_disable) }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_https_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'HTTPS'
+
+
+- name: "Manage F5 BIG-IP TCP-Half-Open monitor(s) for application: {{ group }}"
+  bigip_monitor_tcp_half_open:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_tcp_half_open_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'TCP_HALF_OPEN'
+
+
+- name: "Manage F5 BIG-IP UDP monitor(s) for application: {{ group }}"
+  bigip_monitor_udp:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    send:               "{{ item.value.f5_monitor_send_string | default(f5_defaults.f5_monitor_send_string) }}"
+    receive:            "{{ item.value.f5_monitor_recv_string | default(f5_defaults.f5_monitor_recv_string) }}"
+    receive_disable:    "{{ item.value.f5_monitor_recv_disable| default(f5_defaults.f5_monitor_recv_disable) }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_udp_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'UDP'
+
+
+- name: "Manage F5 BIG-IP Gateway-ICMP monitor(s) for application: {{ group }}"
+  bigip_monitor_gateway_icmp:
+    name:               "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    description:        "{{ item.value.f5_monitor_description | default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}, Type: {{ item.value.f5_monitor_protocol | default(f5_defaults.f5_monitor_protocol) }}/{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    ip:                 "{{ item.value.f5_monitor_ip | default(f5_defaults.f5_monitor_ip) }}" 
+    port:               "{{ item.value.f5_monitor_port | default(f5_defaults.f5_monitor_port) }}"
+    interval:           "{{ item.value.f5_monitor_interval | default(f5_defaults.f5_monitor_interval) }}"
+    partition:          "{{ f5_partition }}"
+    timeout:            "{{ item.value.f5_monitor_timeout | default(f5_defaults.f5_monitor_timeout) }}"
+    state:              "{{ component_state }}"
+    provider:           "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+    
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_udp_open_monitor','f5_manage_monitor' ]
+  when: 
+    - item.key is not search("http-redirect")
+    - item.value.f5_monitor_protocol == 'GATEWAY_ICMP'
+

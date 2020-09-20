@@ -1,0 +1,62 @@
+---
+#
+# this playbook queries the Netbox API using the hosts provded to obtain an IP address from the appropriate load balancer VLAN.
+# if an IP address for the application already exists in the relevant environment, the existing IP address is returned.  Otherwise,
+# a new one is reserved.
+# this playbook runs in serial mode to ensure that multiple IP reservations aren't made, as running in parallel means that a new IP 
+# address could be requested for each host.
+# The IP address is added to the existing dictionary 'node_parameters_dict'.
+#
+
+- name: "Obtain IP address from Netbox API to use in conjunction with the BIG-IP virtual server deployment."
+  hosts: "{{ group | default('undefined-hosts') }}"
+  gather_facts: no
+  serial: 1
+  tasks:
+
+
+  # netbox is used to gather information about the IP allocations already in place for this BIG-IP service.
+  - name: "Query the Netbox API to get the IP address that matches the specified DNS name."
+    import_role:
+      name: netbox_get_ip_address
+    
+      
+  - name: "Query the Netbox API to get the VLAN ID that matches the specified VLAN."
+    import_role:
+      name: netbox_get_vlan
+    
+    
+  - name: "Query the Netbox API to get the prefix that matches the specified VLAN ID."
+    import_role:
+      name: netbox_get_prefix_from_vlan
+    
+    
+  # in the instance where we have one result from querying Netbox for the DNS name,
+  # the server already has a single IP entry in the database, so we return this entry.
+  - name: "Return existing IP address from Netbox API."
+    set_fact:
+      virtual_ip: "{{ ip_result.json.results[0].address | default ('0') }}"
+    when: ip_result.json.count == 1
+     
+    
+  # in the instance where we have more than one result from querying the database for the DNS name,
+  # the server has multiple entries in the database. At this point, human intervention is required
+  # in order to clean up the database.
+  - name: "Return multiple IP error"
+    debug:
+      msg: "There are multiple IP addresses with that DNS name"
+    when: ip_result.json.count > 1  
+       
+    
+  # in the instance where we have no results from querying the database for the DNS name,
+  # the server doesn't have an existing entry, so we create a new entry.
+  - name: "Request next available IP address from Netbox API, for relevant prefix"
+    import_role:
+      name: netbox_create_ip_address_next_available
+    when: ip_result.json.count == 0 
+    
+    
+  - name: "Return newly created IP address."
+    set_fact:
+        virtual_ip: "{{ new_ip_result.json.address | default ('0') }}"
+    when: ip_result.json.count == 0

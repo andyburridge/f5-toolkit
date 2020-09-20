@@ -1,0 +1,37 @@
+---
+##
+##  This role manages virtual addresses on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_virtual_address_module.html
+##
+
+- name: Debug output for virtual address management
+  vars: 
+    msg: |
+         virtual_address_name:         {{ virtual_ip.split('/')[0] | default ('0') }}
+         virtual_address_ip:           {{ virtual_ip.split('/')[0] | default ('0') }}
+         virtual_address_netmask:      {{ item.value.f5_virtual_address_netmask |  default(f5_defaults.f5_virtual_address_netmask) }}
+         virtual_address_icmp_echo:    {{ item.value.f5_virtual_address_icmp_echo |  default(f5_defaults.f5_virtual_address_icmp_echo) }}         
+         virtual_address_partition:    {{ f5_partition }}
+         virtual_address_state:        {{ component_state }}
+         provider:                     {{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}
+ 
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+
+
+- name: "Manage F5 BIG-IP virtual address for application: {{ group }}"
+  bigip_virtual_address:
+    name:         "{{ virtual_ip.split('/')[0] | default ('0') }}"
+    address:      "{{ virtual_ip.split('/')[0] | default ('0') }}"
+    netmask:      "{{ item.value.f5_virtual_address_netmask |  default(f5_defaults.f5_virtual_address_netmask) }}"
+    icmp_echo:    "{{ item.value.f5_virtual_address_icmp_echo |  default(f5_defaults.f5_virtual_address_icmp_echo) }}"
+    partition:    "{{ f5_partition }}"
+    state:        "{{ component_state }}"
+    provider:     "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_virtual_address' ]

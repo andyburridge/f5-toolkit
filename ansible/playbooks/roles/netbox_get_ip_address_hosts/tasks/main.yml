@@ -1,0 +1,37 @@
+---
+##
+## this role obtains IP address information from netbox for the specified DNS name, if it exists.  
+##
+    
+    
+- name: Debug output for obtaining IP address from Netbox
+  vars: 
+    msg: |
+         inventory_hostname:    {{ inventory_hostname|lower }}.yodel.net
+         netbox_dns_suffix:     {{ netbox_info.netbox_dns_suffix |  default('unspecified-domain.com') }}
+         netbox_headers:        {{ netbox_headers }}
+
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"    
+    
+
+  #- name: Provide an interface IP address to the server build playbook based on the requested VLAN | Returns either a new IP address, or the existing IP if already registered
+- name: Query Netbox IP addresses API endpoint to check for an existing IP address entry matching the DNS name specified
+  uri:
+    url: https://netbox.comms.yodel.net/api/ipam/ip-addresses/?dns_name={{ inventory_hostname|lower }}.yodel.net&limit=0
+    method: GET
+    status_code: 200
+    return_content: yes
+    validate_certs: no
+    body_format: json 
+    headers: "{{ netbox_headers }}"
+
+  register: ip_result
+  delegate_to: localhost
+  tags: [ 'netbox_get_ip_endpoint' ]
+
+
+
+

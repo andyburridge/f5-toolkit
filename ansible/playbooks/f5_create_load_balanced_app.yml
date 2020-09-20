@@ -1,0 +1,54 @@
+---
+#
+# this playbook deploys a load balanced application to a F5 BIG-IP device.
+# the paramters used to deploy the application are taken from a combination of:
+# - the specified hosts
+# - the specified group_vars
+# - the dictionary 'node_parameters_dict', assembled by previous playbooks that query the Netbox API.
+#
+
+- name: "Create a load balanced application on a F5 BIG-IP device."
+  hosts: "{{ group | default('undefined-hosts') }}"
+  gather_facts: no
+  tasks:
+
+  - name: "Create F5 BIG-IP node(s) for application: {{ group }}."
+    import_role:
+      name: f5_manage_node
+    ignore_errors: yes
+    tags: f5_create_node
+
+
+  - name: "Create F5 BIG-IP monitor(s) for application: {{ group }}."
+    import_role:
+      name: f5_manage_monitor
+    ignore_errors: yes
+    tags: f5_create_monitor
+
+
+  - name: "Create F5 BIG-IP pool(s) for application: {{ group }}."
+    import_role:
+      name: f5_manage_pool
+    ignore_errors: yes
+    tags: f5_create_pool
+
+
+  - name: "Add node(s) to pool(s) for application: {{ group }}."
+    import_role:
+      name: f5_manage_pool_members
+    ignore_errors: yes
+    tags: f5_manage_pool_members
+
+
+  - name: "Create F5 BIG-IP virtual address for application: {{ group }}."
+    import_role:
+       name: f5_manage_virtual_address
+    ignore_errors: yes
+    tags: f5_create_virtual_address
+
+
+  - name: "Create F5 BIG-IP virtual server for application: {{ group }}."
+    import_role:
+      name: f5_manage_virtual_server
+    ignore_errors: yes
+    tags: f5_create_virtual_server

@@ -1,0 +1,47 @@
+---
+##
+##  This role manages pools on the F5 big-ip
+##  Ref: https://docs.ansible.com/ansible/latest/modules/bigip_pool_module.html
+##
+
+- name: Debug output for pool management
+  vars: 
+    msg: |
+        pool_name:                 {{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Pool
+        pool_description:          {{ item.value.f5_pool_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}.
+        pool_lb_method:            {{ item.value.f5_pool_lb_method |  default(f5_defaults.f5_pool_lb_method) }}
+        pool_monitor_type:         {{ item.value.f5_pool_monitor_type |  default(f5_defaults.f5_pool_monitor_type) }}
+        pool_monitors:             /{{ f5_partition }}/{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor
+        pool_partition:            {{ f5_partition }}
+        pool_service_down_action:  {{ item.value.f5_pool_service_down_action | default(f5_defaults.f5_pool_service_down_action) }}
+        pool_slow_ramp_time:       {{ item.value.f5_pool_slow_ramp_time | default(f5_defaults.f5_pool_slow_ramp_time) }}
+        pool_state:                {{ component_state }}
+        provider:                  {{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: debugme
+  debug:
+    msg: "{{ msg.split('\n') }}"
+  when: 
+    - item.key is not search("http-redirect")
+
+
+- name: "Manage F5 BIG-IP pool(s) for application: {{ group }}"
+  bigip_pool:
+    name:           "{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Pool"
+    description:    "{{ item.value.f5_pool_description |  default(f5_defaults.f5_generic_description) }} User: {{ run_user }}, Time: {{ run_date }}."
+    lb_method:      "{{ item.value.f5_pool_lb_method |  default(f5_defaults.f5_pool_lb_method) }}"
+    monitor_type:   "{{ item.value.f5_pool_monitor_type |  default(f5_defaults.f5_pool_monitor_type) }}"
+    monitors:       "/{{ f5_partition }}/{{ node_parameters_dict[inventory_hostname|lower]['environment']+ '-' + hostvars[inventory_hostname]['group_names'][0] }}-{{ item.key }}_Monitor"
+    partition:      "{{ f5_partition }}"
+    state:          "{{ component_state }}"
+    provider:       "{{ node_parameters_dict[inventory_hostname|lower]['f5_provider'] }}"
+
+  with_dict: "{{ f5_services }}"
+  delegate_to: localhost
+  tags: [ 'f5_manage_pool' ]
+  when: 
+    - item.key is not search("http-redirect")
+
+

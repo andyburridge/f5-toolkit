@@ -1,0 +1,61 @@
+---
+#
+# this playbook deletes a load balanced application to a F5 BIG-IP device, utilising Netbox IPAM to obtain
+# the required networking information.
+#
+
+- name: "Delete BIG-IP load balanced application."
+  hosts: "{{ group | default('undefined-hosts') }}"
+  gather_facts: no
+  vars_prompt:
+    - name: f5_username_from_prompt 
+      prompt: "BIG-IP Username"
+      private: no
+
+    - name: f5_password_from_prompt 
+      prompt: "BIG-IP Password"
+
+    - name: netbox_api_token_from_prompt 
+      prompt: "Netbox API Token"
+
+  tasks:
+    - name: "Initialise the variables used across the various imported playbooks."
+      set_fact: 
+        #
+        # static variables
+        #
+        # - run_date:             current date/timestamp
+        # - component_state       used by every f5_role, and set to reflect the job of the calling playbook (present/absent).
+        # - node_parameters_dict  dictionary for storing infromation gathered from netbox, to pass to the BIG-IP deployment playbook.
+        # - lb_vlans:             scratchpad list used to store and process the VLANs obtained from Netbox.
+        # - virtual_ip            set to dummy value initially, updated by netbox getting/creating the VIP.  
+        run_date: "{{ lookup('pipe', 'date +%Y-%m-%d--%H:%M') }}"
+        component_state: absent
+        node_parameters_dict: {}
+        lb_vlans: []
+        virtual_ip: 1.1.1.1
+        #
+        # variables passed at runtime
+        #
+        # - f5_partition:         used by every f5 role, and set equal to the partition variable passed when calling the playbook.
+        f5_partition: "{{ partition | default('undefined-partition') }}"
+        #
+        # variables passed from user prompts
+        #
+        # - run_user:             used in compiling descriptions for created data, taken from the username passed from prompts
+        # - netbox_headers:       used to authenticate to netbox, using the token passed from prompts
+        run_user: "{{ f5_username_from_prompt  }}"
+        f5_username: "{{ f5_username_from_prompt }}"
+        f5_password: "{{ f5_password_from_prompt }}"
+        netbox_headers:
+          Content-Type: application/json
+          Accept: application/json
+          Authorization: "Token {{ netbox_api_token_from_prompt  }}"    
+
+
+- import_playbook: netbox_gather_information.yml
+
+- import_playbook: netbox_delete_virtual_address.yml
+
+- import_playbook: f5_delete_load_balanced_app.yml
+
